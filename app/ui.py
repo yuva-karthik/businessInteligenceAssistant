@@ -1,118 +1,170 @@
-import os
 
+import os
 import requests
 import streamlit as st
 
-
-API_URL = os.getenv(
-    "API_URL",
-    "http://127.0.0.1:5000",
-)
+API_URL = os.getenv("API_URL", "http://127.0.0.1:5000")
 
 st.set_page_config(
-    page_title="RSG BI Assistant V1",
+    page_title="RSG BI Assistant",
+    page_icon="📊",
     layout="wide",
 )
 
-st.title(" Mini Business Intelligence Assistant")
+# Session state stores messages for display only.
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
+if "clear_chat" not in st.session_state:
+    st.session_state.clear_chat = False
 
+if st.session_state.clear_chat:
+    st.session_state.messages = []
+    st.session_state.clear_chat = False
+
+# Sidebar
 with st.sidebar:
-    st.subheader("Example questions")
+    st.title("📊 RSG BI")
+    st.caption("Sales Intelligence Assistant")
+    st.divider()
+
+    st.subheader("Dataset overview")
+
+    try:
+        response = requests.get(
+            f"{API_URL}/api/summary",
+            timeout=(5, 15),
+        )
+        response.raise_for_status()
+        summary = response.json()
+
+        st.metric(
+            "Net revenue",
+            f"{summary['total_revenue']:,.2f}",
+        )
+        st.metric(
+            "Included transactions",
+            summary["included_transactions"],
+        )
+        st.metric(
+            "Excluded transactions",
+            summary["excluded_transactions"],
+        )
+
+    except requests.RequestException:
+        st.warning("Could not load dataset metrics.")
+
+    st.divider()
+    st.subheader("Try asking")
 
     examples = [
         "What is the total revenue?",
         "Which product has the highest revenue?",
-        "Show monthly revenue trend",
-        "Which region has the highest sales?",
-        "Compare revenue between 2026-01 and 2026-02",
-        "Show the data quality report",
+        "Show the monthly revenue trend.",
+        "Which region has the highest revenue?",
+        "What percentage increase was there from January to February 2026?",
+        "Show the data quality report.",
     ]
 
-    selected = st.selectbox(
-        "Choose an example",
-        examples,
-    )
+    for example in examples:
+        if st.button(example, use_container_width=True):
+            st.session_state.pending_question = example
 
-    if st.button("Use example"):
-        st.session_state["question"] = selected
+    st.divider()
 
-try:
-    response = requests.get(
-        f"{API_URL}/api/summary",
-        timeout=(5, 15),
-    )
-    response.raise_for_status()
+    if st.button("🗑️ Clear conversation", use_container_width=True):
+        st.session_state.clear_chat = True
+        st.rerun()
 
-    data = response.json()
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric(
-        "Total net revenue",
-        f"{data['total_revenue']:,.2f}",
-    )
-
-    col2.metric(
-        "Included transactions",
-        data["included_transactions"],
-    )
-
-    col3.metric(
-        "Excluded transactions",
-        data["excluded_transactions"],
-    )
-
-except requests.RequestException:
-    st.warning(
-        "Flask API is not responding. "
-        "Start it using: python -m app.api"
-    )
-
-question = st.text_input(
-    "Ask a sales question",
-    key="question",
-    placeholder="e.g. Which product has the highest revenue?",
+# Main chat area
+st.title("Business Intelligence Assistant")
+st.caption(
+    "Ask questions about sales, revenue, products, regions, and trends."
 )
 
-if st.button("Ask", type="primary"):
-    if not question.strip():
-        st.warning("Enter a question first.")
-    else:
-        try:
-            response = requests.post(
-                f"{API_URL}/api/ask",
-                json={"question": question},
-                timeout=(5, 300),
-            )
+# Render previous messages. These are visual history only.
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-            if response.ok:
+        if message.get("details"):
+            with st.expander("Analysis details"):
+                st.json(message["details"])
+
+# Handle example-question clicks.
+pending_question = st.session_state.pop("pending_question", None)
+
+question = st.chat_input("Ask a question about your sales data...")
+
+if pending_question:
+    question = pending_question
+
+if question and question.strip():
+    question = question.strip()
+
+    # Show and store the user's message.
+    st.session_state.messages.append({
+        "role": "user",
+        "content": question,
+    })
+
+    with st.chat_message("user"):
+        st.markdown(question)
+
+    # Call the Flask agent.
+    with st.chat_message("assistant"):
+        with st.spinner("Analyzing your sales data..."):
+            try:
+                response = requests.post(
+                    f"{API_URL}/api/ask",
+                    json={"question": question},
+                    timeout=(5, 300),
+                )
+
+                response.raise_for_status()
                 result = response.json()
 
-                st.subheader("Answer")
-                st.write(result["answer"])
+                answer = result.get(
+                    "answer",
+                    "The API did not return an answer.",
+                )
 
-                if result.get("intent") == "monthly_trend":
-                    chart_data = result.get("data", [])
+                st.markdown(answer)
 
-                    if chart_data:
-                        st.bar_chart({
-                            item["month"]: item["revenue"]
-                            for item in chart_data
-                        })
+                details = {
+                    key: value
+                    for key, value in result.items()
+                    if key != "answer"
+                }
 
-                with st.expander("View structured result"):
-                    st.json(result)
+                with st.expander("Analysis details"):
+                    st.json(details)
 
-            else:
-                st.error(response.text)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer,
+                    "details": details,
+                })
 
-        except requests.RequestException as exc:
-            st.error(f"Could not reach Flask API: {exc}")
+            except requests.Timeout:
+                answer = (
+                    "The request took too long. Please try again, "
+                    "or check the Flask and Ollama logs."
+                )
 
-st.divider()
+                st.error(answer)
 
-st.caption(
-    "Revenue = quantity × unit price − discount. "
-    "Only valid completed transactions are included."
-)
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer,
+                })
+
+            except requests.RequestException as exc:
+                answer = f"Could not reach the Flask API: {exc}"
+
+                st.error(answer)
+
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": answer,
+                })

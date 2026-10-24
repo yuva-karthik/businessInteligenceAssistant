@@ -243,3 +243,33 @@ def data_quality(db_path=None):
         "excluded": total - included,
         "reasons": reasons,
     }
+
+
+def top_sales_channel(db_path=None):
+    with connect(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT Sales_channel, COUNT(*) AS transaction_count
+            FROM sales
+            WHERE included = 1
+            GROUP BY Sales_channel
+            ORDER BY transaction_count DESC, Sales_channel ASC
+            LIMIT 1
+            """
+        ).fetchone()
+
+    if not row:
+        return {
+            "intent": "top_sales_channel",
+            "answer": "No included sales data was found.",
+        }
+
+    return {
+        "intent": "top_sales_channel",
+        "answer": (
+            f"The most-used sales channel was {row['Sales_channel']}, "
+            f"with {row['transaction_count']} completed transactions."
+        ),
+        "channel": row["Sales_channel"],
+        "transaction_count": row["transaction_count"],
+    }

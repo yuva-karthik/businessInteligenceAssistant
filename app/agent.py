@@ -65,6 +65,11 @@ def get_data_quality_report() -> dict:
     """Report included and excluded records and their exclusion reasons."""
     return analytics.data_quality()
 
+@tool
+def get_top_channel() -> dict:
+    """Find the sales channel used for the greatest number of included transactions."""
+    return analytics.top_sales_channel()
+
 
 TOOLS = [
     get_total_revenue,
@@ -73,6 +78,7 @@ TOOLS = [
     get_top_region,
     compare_monthly_revenue,
     get_data_quality_report,
+    get_top_channel,
 ]
 
 llm = ChatOllama(
@@ -97,6 +103,10 @@ that asks about actual sales figures, revenue, products, regions,
 monthly trends, or comparisons.
 
 Never answer numerical questions from memory or guesswork.
+
+For every question about sales data, you must call the relevant
+analytics tool before answering. Never describe a tool call as text.
+Only report results returned by the tool.
 
 For questions mentioning "last month", "previous month",
 "month-over-month", or "percentage increase from last month's sales":
