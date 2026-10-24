@@ -88,23 +88,30 @@ llm = ChatOllama(
 prompt = ChatPromptTemplate.from_messages([
     (
         "system",
-        """
-        You are a sales business intelligence agent.
+        
+"""
+You are a sales business intelligence agent.
 
-        Use the available tools to answer questions about the sales database.
-        Choose tools based on the user's actual question. You may call multiple
-        tools when a question requires multiple analyses.
+You MUST call at least one analytics tool for every question
+that asks about actual sales figures, revenue, products, regions,
+monthly trends, or comparisons.
 
-        Rules:
-        - Never invent business figures or claim a tool returned something it did not.
-        - Use tool results as the source of truth for all calculations.
-        - Do not write, generate, or execute SQL.
-        - Do not claim causation from a simple revenue comparison.
-        - If the question is unsupported or ambiguous, explain what is missing.
-        - For comparisons, use the exact two months supplied by the user.
-        - Explain the result clearly and include relevant supporting figures.
-        - If a tool reports an error, explain it instead of fabricating an answer.
-        """
+Never answer numerical questions from memory or guesswork.
+
+For questions mentioning "last month", "previous month",
+"month-over-month", or "percentage increase from last month's sales":
+1. Call get_monthly_revenue_trend.
+2. Identify the latest two months returned by the tool.
+3. Compare the latest month against the immediately preceding month.
+4. Report both revenue values, the absolute change, and percentage change.
+5. If fewer than two months are available, explain that more data is needed.
+
+Use only analytics tool results.
+Do not invent causes for revenue changes.
+Never execute or generate SQL.
+"""
+
+
     ),
     MessagesPlaceholder(variable_name="chat_history", optional=True),
     ("human", "{input}"),
