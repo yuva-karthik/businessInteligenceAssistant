@@ -1,0 +1,28 @@
+services:
+  api:
+    build: .
+    container_name: rsg-bi-api
+    command: python -m app.api
+    ports:
+      - "5000:5000"
+    environment:
+      CSV_PATH: /app/data.csv
+      DB_PATH: /app/data/sales.db
+    volumes:
+      - sales_data:/app/data
+    restart: unless-stopped
+
+  ui:
+    build: .
+    container_name: rsg-bi-ui
+    command: streamlit run app/ui.py --server.address=0.0.0.0 --server.port=8501
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://api:5000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  sales_data:
