@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request
 
 from app.database import load_csv
 from app import analytics
-from app.rules import answer_question
+from app.agent import answer_question
 
 
 def create_app(test_config=None):

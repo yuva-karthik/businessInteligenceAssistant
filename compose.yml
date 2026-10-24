@@ -8,8 +8,12 @@ services:
     environment:
       CSV_PATH: /app/data.csv
       DB_PATH: /app/data/sales.db
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: llama3.2
     volumes:
       - sales_data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   ui:

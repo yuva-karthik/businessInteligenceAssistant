@@ -40,7 +40,7 @@ with st.sidebar:
 try:
     response = requests.get(
         f"{API_URL}/api/summary",
-        timeout=3,
+        timeout=(5, 15),
     )
     response.raise_for_status()
 
@@ -83,7 +83,7 @@ if st.button("Ask", type="primary"):
             response = requests.post(
                 f"{API_URL}/api/ask",
                 json={"question": question},
-                timeout=10,
+                timeout=(5, 300),
             )
 
             if response.ok:
